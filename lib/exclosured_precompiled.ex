@@ -100,7 +100,6 @@ defmodule ExclosuredPrecompiled do
     * `config :exclosured_precompiled, force_build: true`
     * `config :exclosured_precompiled, force_build: [:module_name]`
   """
-  @doc false
   def set_force_build_all(value) do
     :persistent_term.put(@force_build_key, value)
   end
