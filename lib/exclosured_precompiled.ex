@@ -55,6 +55,9 @@ defmodule ExclosuredPrecompiled do
   @cache_dir_name "exclosured_precompiled"
   @max_retries 3
 
+  # Internal flag set by the precompile Mix task to skip downloads
+  @force_build_key {__MODULE__, :force_build_all}
+
   defmacro __using__(opts) do
     otp_app = Keyword.fetch!(opts, :otp_app)
     base_url = Keyword.fetch!(opts, :base_url)
@@ -97,10 +100,18 @@ defmodule ExclosuredPrecompiled do
     * `config :exclosured_precompiled, force_build: true`
     * `config :exclosured_precompiled, force_build: [:module_name]`
   """
+  @doc false
+  def set_force_build_all(value) do
+    :persistent_term.put(@force_build_key, value)
+  end
+
   def force_build?(_otp_app, modules) do
     force_env = System.get_env("EXCLOSURED_PRECOMPILED_FORCE_BUILD_ALL", "")
 
     cond do
+      :persistent_term.get(@force_build_key, false) ->
+        true
+
       force_env in ["1", "true"] ->
         true
 

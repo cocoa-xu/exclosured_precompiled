@@ -3,6 +3,11 @@ defmodule Mix.Tasks.ExclosuredPrecompiled.Precompile do
   Compile WASM modules and package them into tar.gz archives for
   publishing to a GitHub Release.
 
+  This task automatically sets `EXCLOSURED_PRECOMPILED_FORCE_BUILD_ALL=1`
+  and runs `mix compile` before packaging, so the WASM modules are built
+  from source even if `ExclosuredPrecompiled` is configured (which would
+  normally try to download precompiled binaries).
+
   ## Usage
 
       mix exclosured_precompiled.precompile --version 0.1.0 --modules my_processor,my_filter
@@ -16,10 +21,10 @@ defmodule Mix.Tasks.ExclosuredPrecompiled.Precompile do
 
   ## Output
 
-  Creates one `.tar.gz` file per module in the output directory:
+  Creates one `.tar.gz` and `.sha256` file per module in the output directory:
 
       _build/precompiled/my_processor-v0.1.0-wasm32.tar.gz
-      _build/precompiled/my_filter-v0.1.0-wasm32.tar.gz
+      _build/precompiled/my_processor-v0.1.0-wasm32.tar.gz.sha256
 
   Upload these to your GitHub Release, then run
   `mix exclosured_precompiled.checksum` to generate checksums.
@@ -47,6 +52,13 @@ defmodule Mix.Tasks.ExclosuredPrecompiled.Precompile do
 
     wasm_base = opts[:wasm_dir] || "priv/static/wasm"
     output_dir = opts[:output_dir] || "_build/precompiled"
+
+    # Force build from source (skip precompiled download)
+    ExclosuredPrecompiled.set_force_build_all(true)
+
+    # Compile the project to build WASM modules
+    Mix.shell().info("[ExclosuredPrecompiled] Compiling WASM modules from source...")
+    Mix.Task.run("compile", ["--force"])
 
     for module_name <- modules do
       wasm_dir = Path.join(wasm_base, module_name)
