@@ -36,14 +36,14 @@ defmodule ExclosuredPrecompiled.MixProject do
     [
       licenses: ["MIT"],
       links: %{"GitHub" => "https://github.com/cocoa-xu/exclosured_precompiled"},
-      files: ~w(lib mix.exs README.md LICENSE CHANGELOG.md)
+      files: ~w(lib mix.exs README.md LICENSE CHANGELOG.md PRECOMPILATION_GUIDE.md)
     ]
   end
 
   defp docs do
     [
       main: "ExclosuredPrecompiled",
-      extras: ["README.md"]
+      extras: ["README.md", "PRECOMPILATION_GUIDE.md", "CHANGELOG.md"]
     ]
   end
 end
