@@ -6,23 +6,23 @@ defmodule Mix.Tasks.ExclosuredPrecompiled.Checksum do
 
   From local archives (after running `exclosured_precompiled.precompile`):
 
-      mix exclosured_precompiled.checksum --local --dir _build/precompiled --module MyLib.Precompiled
+      mix exclosured_precompiled.checksum --local
 
   From a GitHub Release (downloads only the small `.sha256` sidecar files,
   not the full archives):
 
-      mix exclosured_precompiled.checksum --base-url https://github.com/user/repo/releases/download/v0.1.0 --module MyLib.Precompiled
+      mix exclosured_precompiled.checksum
 
   ## Options
 
-    * `--module` (required) - The Elixir module that `use ExclosuredPrecompiled`
-    * `--base-url` - Download `.sha256` files from this URL
-    * `--local` - Use local archives instead of downloading
+    * `--local` - Use local archives instead of downloading from GitHub
     * `--dir` - Directory containing local archives (default: `_build/precompiled`)
+    * `--module` - Elixir module with `ExclosuredPrecompiled` config (auto-discovered if omitted)
+    * `--base-url` - Override the download URL (uses module config if omitted)
 
   ## Output
 
-  Generates `checksum-Elixir.MyLib.Precompiled.exs` in the project root.
+  Generates `checksum-Elixir.MODULE.exs` in the project root.
   Include this file in your Hex package's `:files` list.
   """
 
@@ -42,32 +42,81 @@ defmodule Mix.Tasks.ExclosuredPrecompiled.Checksum do
         ]
       )
 
-    module_str = opts[:module] || Mix.raise("--module is required")
-    caller_module = Module.concat([module_str])
+    if opts[:local] do
+      run_local(opts)
+    else
+      run_remote(opts)
+    end
+  end
 
-    checksums =
-      if opts[:local] do
-        dir = opts[:dir] || "_build/precompiled"
-        collect_local_checksums(dir)
-      else
-        base_url = opts[:base_url] || Mix.raise("--base-url is required (or use --local)")
-        config = caller_module.__exclosured_precompiled_config__()
-        download_sha256_files(base_url, config)
-      end
+  defp run_local(opts) do
+    dir = opts[:dir] || "_build/precompiled"
+    {caller_module, _config} = resolve_module(opts)
+    checksums = collect_local_checksums(dir)
+    write_and_report(checksums, caller_module)
+  end
 
+  defp run_remote(opts) do
+    # Ensure project is compiled so we can discover modules
+    Mix.Task.run("compile", [])
+
+    {caller_module, config} = resolve_module(opts)
+    base_url = opts[:base_url] || config.base_url
+    checksums = download_sha256_files(base_url, config)
+    write_and_report(checksums, caller_module)
+  end
+
+  defp resolve_module(opts) do
+    case opts[:module] do
+      nil ->
+        case discover_precompiled_module() do
+          nil ->
+            Mix.raise(
+              "[ExclosuredPrecompiled] No module with `use ExclosuredPrecompiled` found. " <>
+                "Pass --module explicitly."
+            )
+
+          {mod, config} ->
+            {mod, config}
+        end
+
+      module_str ->
+        mod = Module.concat([module_str])
+        Code.ensure_loaded!(mod)
+        {mod, mod.__exclosured_precompiled_config__()}
+    end
+  end
+
+  defp discover_precompiled_module do
+    app = Mix.Project.config()[:app]
+
+    case :application.get_key(app, :modules) do
+      {:ok, modules} ->
+        modules
+        |> Enum.find(fn mod ->
+          Code.ensure_loaded?(mod) and
+            function_exported?(mod, :__exclosured_precompiled_config__, 0)
+        end)
+        |> case do
+          nil -> nil
+          mod -> {mod, mod.__exclosured_precompiled_config__()}
+        end
+
+      :undefined ->
+        nil
+    end
+  end
+
+  defp write_and_report(checksums, caller_module) do
     path = ExclosuredPrecompiled.write_checksum_file(checksums, caller_module)
 
-    Mix.shell().info("\nChecksums written to #{path}:")
+    Mix.shell().info("Checksums written to #{path}:")
 
     for {name, hash} <- checksums do
       Mix.shell().info("  #{name}: #{hash}")
     end
-
-    Mix.shell().info("\nAdd to your mix.exs package files:")
-    Mix.shell().info(~s|  files: [..., "checksum-*.exs"]|)
   end
 
-  # Read checksums from local .sha256 sidecar files (or compute from archives)
   defp collect_local_checksums(dir) do
     dir
     |> Path.join("*.tar.gz")
@@ -78,7 +127,6 @@ defmodule Mix.Tasks.ExclosuredPrecompiled.Checksum do
 
       checksum =
         if File.exists?(sha_file) do
-          # Read from sidecar file (format: "HEX  filename\n")
           sha_file
           |> File.read!()
           |> String.trim()
@@ -86,7 +134,6 @@ defmodule Mix.Tasks.ExclosuredPrecompiled.Checksum do
           |> hd()
           |> then(&"sha256:#{&1}")
         else
-          # Fallback: compute from archive
           ExclosuredPrecompiled.compute_checksum(archive_path)
         end
 
@@ -94,7 +141,6 @@ defmodule Mix.Tasks.ExclosuredPrecompiled.Checksum do
     end)
   end
 
-  # Download only .sha256 sidecar files from GitHub Release
   defp download_sha256_files(base_url, config) do
     tmp_dir =
       Path.join(System.tmp_dir!(), "exclosured_checksums_#{:erlang.unique_integer([:positive])}")
