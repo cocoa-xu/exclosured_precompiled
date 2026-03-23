@@ -74,17 +74,20 @@ defmodule ExclosuredPrecompiled do
 
       def __exclosured_precompiled_config__, do: @exclosured_precompiled_config
 
-      if ExclosuredPrecompiled.force_build?(unquote(otp_app), unquote(modules)) do
-        require Logger
-        Logger.info("[ExclosuredPrecompiled] Force build enabled, skipping precompiled download")
-      else
-        ExclosuredPrecompiled.ensure_downloaded!(
-          unquote(otp_app),
-          unquote(base_url),
-          unquote(version),
-          unquote(modules),
-          __MODULE__
-        )
+      case ExclosuredPrecompiled.force_build_reason(unquote(otp_app), unquote(modules)) do
+        nil ->
+          ExclosuredPrecompiled.ensure_downloaded!(
+            unquote(otp_app),
+            unquote(base_url),
+            unquote(version),
+            unquote(modules),
+            __MODULE__
+          )
+
+        reason ->
+          unless reason == :internal do
+            Mix.shell().info("[ExclosuredPrecompiled] Force build: #{reason}")
+          end
       end
     end
   end
@@ -104,28 +107,37 @@ defmodule ExclosuredPrecompiled do
     :persistent_term.put(@force_build_key, value)
   end
 
-  def force_build?(_otp_app, modules) do
+  @doc """
+  Returns the reason for force build, or `nil` if precompiled download should be used.
+  """
+  def force_build_reason(_otp_app, modules) do
     force_env = System.get_env("EXCLOSURED_PRECOMPILED_FORCE_BUILD_ALL", "")
 
     cond do
       :persistent_term.get(@force_build_key, false) ->
-        true
+        :internal
 
       force_env in ["1", "true"] ->
-        true
+        "EXCLOSURED_PRECOMPILED_FORCE_BUILD_ALL=#{force_env}"
 
       Application.get_env(:exclosured_precompiled, :force_build_all, false) ->
-        true
+        "config :exclosured_precompiled, force_build_all: true"
 
       Application.get_env(:exclosured_precompiled, :force_build) == true ->
-        true
+        "config :exclosured_precompiled, force_build: true"
 
       is_list(Application.get_env(:exclosured_precompiled, :force_build, [])) ->
         force_list = Application.get_env(:exclosured_precompiled, :force_build, [])
-        Enum.any?(modules, &(&1 in force_list))
+
+        if Enum.any?(modules, &(&1 in force_list)) do
+          matched = Enum.filter(modules, &(&1 in force_list))
+          "config :exclosured_precompiled, force_build: #{inspect(matched)}"
+        else
+          nil
+        end
 
       true ->
-        false
+        nil
     end
   end
 

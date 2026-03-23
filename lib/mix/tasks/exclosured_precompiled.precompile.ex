@@ -72,11 +72,5 @@ defmodule Mix.Tasks.ExclosuredPrecompiled.Precompile do
       size = File.stat!(path).size
       Mix.shell().info("  #{path} (#{div(size, 1024)} KB)")
     end
-
-    Mix.shell().info("\nUpload archives and checksums to your GitHub Release:")
-
-    Mix.shell().info(
-      "  gh release create v#{version} #{output_dir}/*.tar.gz #{output_dir}/*.sha256"
-    )
   end
 end

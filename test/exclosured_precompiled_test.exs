@@ -166,21 +166,29 @@ defmodule ExclosuredPrecompiledTest do
     end
   end
 
-  describe "force_build?/2" do
-    test "returns false by default" do
-      refute ExclosuredPrecompiled.force_build?(:my_app, [:mod1])
+  describe "force_build_reason/2" do
+    test "returns nil by default" do
+      assert ExclosuredPrecompiled.force_build_reason(:my_app, [:mod1]) == nil
     end
 
-    test "returns true when env var is set" do
+    test "returns reason when env var is set to 1" do
       System.put_env("EXCLOSURED_PRECOMPILED_FORCE_BUILD_ALL", "1")
-      assert ExclosuredPrecompiled.force_build?(:my_app, [:mod1])
+      reason = ExclosuredPrecompiled.force_build_reason(:my_app, [:mod1])
+      assert reason =~ "EXCLOSURED_PRECOMPILED_FORCE_BUILD_ALL"
       System.delete_env("EXCLOSURED_PRECOMPILED_FORCE_BUILD_ALL")
     end
 
-    test "returns true when env var is 'true'" do
+    test "returns reason when env var is 'true'" do
       System.put_env("EXCLOSURED_PRECOMPILED_FORCE_BUILD_ALL", "true")
-      assert ExclosuredPrecompiled.force_build?(:my_app, [:mod1])
+      reason = ExclosuredPrecompiled.force_build_reason(:my_app, [:mod1])
+      assert reason =~ "EXCLOSURED_PRECOMPILED_FORCE_BUILD_ALL"
       System.delete_env("EXCLOSURED_PRECOMPILED_FORCE_BUILD_ALL")
+    end
+
+    test "returns :internal when set by precompile task" do
+      ExclosuredPrecompiled.set_force_build_all(true)
+      assert ExclosuredPrecompiled.force_build_reason(:my_app, [:mod1]) == :internal
+      ExclosuredPrecompiled.set_force_build_all(false)
     end
   end
 end
