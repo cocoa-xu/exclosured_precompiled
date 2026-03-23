@@ -60,11 +60,17 @@ end
 
 ### 3. Build and package
 
-Compile the WASM modules locally (requires the Rust toolchain), then
-package them into archives:
+One command compiles from source and packages into archives (requires
+the Rust toolchain). Modules are auto-discovered from your
+`ExclosuredPrecompiled` config:
 
 ```sh
-mix compile
+mix exclosured_precompiled.precompile --version 0.1.0
+```
+
+You can also specify modules manually:
+
+```sh
 mix exclosured_precompiled.precompile --version 0.1.0 --modules my_processor,my_filter
 ```
 

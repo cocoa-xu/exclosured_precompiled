@@ -53,22 +53,13 @@ end
 The `base_url` points to a GitHub Release. Each module's archive is
 expected at `BASE_URL/MODULE-vVERSION-wasm32.tar.gz`.
 
-## Step 3: Build the WASM modules
+## Step 3: Build and package
 
-Compile your project normally. This requires the Rust toolchain:
-
-```sh
-mix compile
-```
-
-The compiled files end up in `priv/static/wasm/MODULE/`.
-
-## Step 4: Package into archives
+One command compiles from source and packages into archives. Modules
+are auto-discovered from your `ExclosuredPrecompiled` config:
 
 ```sh
-mix exclosured_precompiled.precompile \
-  --version 0.1.0 \
-  --modules my_processor,my_filter
+mix exclosured_precompiled.precompile --version 0.1.0
 ```
 
 This creates one `.tar.gz` per module in `_build/precompiled/`:
@@ -88,7 +79,7 @@ my_processor.d.ts          # TypeScript definitions (if present)
 my_processor_bg.wasm.d.ts  # WASM TypeScript definitions (if present)
 ```
 
-## Step 5: Upload to GitHub Release
+## Step 4: Upload to GitHub Release
 
 Create a GitHub Release and upload the archives:
 
@@ -98,7 +89,7 @@ gh release create v0.1.0 _build/precompiled/*.tar.gz
 
 Or upload manually through the GitHub web UI.
 
-## Step 6: Generate checksums
+## Step 5: Generate checksums
 
 After uploading, generate checksums to verify download integrity:
 
@@ -118,7 +109,7 @@ mix exclosured_precompiled.checksum \
 This generates `checksum-Elixir.MyLibrary.Precompiled.exs` in your
 project root.
 
-## Step 7: Publish to Hex
+## Step 6: Publish to Hex
 
 Include the checksum file in your Hex package:
 
