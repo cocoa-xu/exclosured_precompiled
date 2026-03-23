@@ -74,7 +74,11 @@ defmodule ExclosuredPrecompiled do
 
       def __exclosured_precompiled_config__, do: @exclosured_precompiled_config
 
-      case ExclosuredPrecompiled.force_build_reason(unquote(otp_app), unquote(modules)) do
+      case ExclosuredPrecompiled.force_build_reason(
+             unquote(otp_app),
+             unquote(modules),
+             unquote(version)
+           ) do
         nil ->
           ExclosuredPrecompiled.ensure_downloaded!(
             unquote(otp_app),
@@ -109,13 +113,19 @@ defmodule ExclosuredPrecompiled do
 
   @doc """
   Returns the reason for force build, or `nil` if precompiled download should be used.
+
+  Pre-release versions (containing `-dev`, `-rc`, etc.) automatically
+  trigger a force build since no precompiled binaries exist for them.
   """
-  def force_build_reason(_otp_app, modules) do
+  def force_build_reason(_otp_app, modules, version \\ nil) do
     force_env = System.get_env("EXCLOSURED_PRECOMPILED_FORCE_BUILD_ALL", "")
 
     cond do
       :persistent_term.get(@force_build_key, false) ->
         :internal
+
+      version != nil and String.contains?(to_string(version), "-") ->
+        "pre-release version (#{version})"
 
       force_env in ["1", "true"] ->
         "EXCLOSURED_PRECOMPILED_FORCE_BUILD_ALL=#{force_env}"

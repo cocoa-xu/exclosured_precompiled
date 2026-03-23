@@ -8,15 +8,16 @@ defmodule Mix.Tasks.ExclosuredPrecompiled.Precompile do
 
   ## Usage
 
-      # Auto-discover modules from ExclosuredPrecompiled config:
-      mix exclosured_precompiled.precompile --version 0.1.0
+      # Auto-discover everything from mix.exs and ExclosuredPrecompiled config:
+      mix exclosured_precompiled.precompile
 
-      # Or specify modules manually:
+      # Or override version and modules:
       mix exclosured_precompiled.precompile --version 0.1.0 --modules my_processor,my_filter
 
   ## Options
 
-    * `--version` (required) - The version string for the archive filename
+    * `--version` - The version string for the archive filename.
+      Defaults to the project version from `mix.exs`.
     * `--modules` - Comma-separated list of module names to package.
       If omitted, auto-discovers from modules using `ExclosuredPrecompiled`.
     * `--wasm-dir` - Base directory for WASM files (default: `priv/static/wasm`)
@@ -43,8 +44,6 @@ defmodule Mix.Tasks.ExclosuredPrecompiled.Precompile do
         ]
       )
 
-    version = opts[:version] || Mix.raise("--version is required")
-
     wasm_base = opts[:wasm_dir] || "priv/static/wasm"
     output_dir = opts[:output_dir] || "_build/precompiled"
 
@@ -55,28 +54,8 @@ defmodule Mix.Tasks.ExclosuredPrecompiled.Precompile do
     Mix.shell().info("[ExclosuredPrecompiled] Compiling WASM modules from source...")
     Mix.Task.run("compile", ["--force"])
 
-    # Discover or use provided modules
-    modules =
-      case opts[:modules] do
-        nil ->
-          discovered = discover_modules()
-
-          if discovered == [] do
-            Mix.raise(
-              "[ExclosuredPrecompiled] No modules found. " <>
-                "Either pass --modules or define a module with `use ExclosuredPrecompiled`."
-            )
-          end
-
-          Mix.shell().info(
-            "[ExclosuredPrecompiled] Discovered modules: #{Enum.join(discovered, ", ")}"
-          )
-
-          discovered
-
-        modules_str ->
-          modules_str |> String.split(",") |> Enum.map(&String.trim/1)
-      end
+    # Discover config or use provided overrides
+    {version, modules} = resolve_version_and_modules(opts)
 
     for module_name <- modules do
       wasm_dir = Path.join(wasm_base, module_name)
@@ -92,24 +71,55 @@ defmodule Mix.Tasks.ExclosuredPrecompiled.Precompile do
     end
   end
 
-  defp discover_modules do
+  defp resolve_version_and_modules(opts) do
+    case {opts[:version], opts[:modules]} do
+      {nil, nil} ->
+        # Auto-discover both from ExclosuredPrecompiled config
+        config = discover_config()
+        {config.version, Enum.map(config.modules, &to_string/1)}
+
+      {version, nil} ->
+        # Version provided, discover modules
+        config = discover_config()
+        {version, Enum.map(config.modules, &to_string/1)}
+
+      {nil, modules_str} ->
+        # Modules provided, discover version
+        config = discover_config()
+        modules = modules_str |> String.split(",") |> Enum.map(&String.trim/1)
+        {config.version, modules}
+
+      {version, modules_str} ->
+        # Both provided
+        modules = modules_str |> String.split(",") |> Enum.map(&String.trim/1)
+        {version, modules}
+    end
+  end
+
+  defp discover_config do
     app = Mix.Project.config()[:app]
 
-    case :application.get_key(app, :modules) do
-      {:ok, modules} ->
-        modules
-        |> Enum.filter(fn mod ->
-          Code.ensure_loaded?(mod) and
-            function_exported?(mod, :__exclosured_precompiled_config__, 0)
-        end)
-        |> Enum.flat_map(fn mod ->
-          config = mod.__exclosured_precompiled_config__()
-          Enum.map(config.modules, &to_string/1)
-        end)
-        |> Enum.uniq()
+    config =
+      case :application.get_key(app, :modules) do
+        {:ok, modules} ->
+          modules
+          |> Enum.find(fn mod ->
+            Code.ensure_loaded?(mod) and
+              function_exported?(mod, :__exclosured_precompiled_config__, 0)
+          end)
+          |> case do
+            nil -> nil
+            mod -> mod.__exclosured_precompiled_config__()
+          end
 
-      :undefined ->
-        []
-    end
+        :undefined ->
+          nil
+      end
+
+    config ||
+      Mix.raise(
+        "[ExclosuredPrecompiled] No module with `use ExclosuredPrecompiled` found. " <>
+          "Pass --version and --modules explicitly."
+      )
   end
 end

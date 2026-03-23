@@ -166,28 +166,42 @@ defmodule ExclosuredPrecompiledTest do
     end
   end
 
-  describe "force_build_reason/2" do
+  describe "force_build_reason/3" do
     test "returns nil by default" do
-      assert ExclosuredPrecompiled.force_build_reason(:my_app, [:mod1]) == nil
+      assert ExclosuredPrecompiled.force_build_reason(:my_app, [:mod1], "0.1.0") == nil
+    end
+
+    test "returns reason for -dev version" do
+      reason = ExclosuredPrecompiled.force_build_reason(:my_app, [:mod1], "0.1.0-dev")
+      assert reason =~ "pre-release"
+    end
+
+    test "returns reason for -rc version" do
+      reason = ExclosuredPrecompiled.force_build_reason(:my_app, [:mod1], "0.2.0-rc.1")
+      assert reason =~ "pre-release"
+    end
+
+    test "returns nil for stable version" do
+      assert ExclosuredPrecompiled.force_build_reason(:my_app, [:mod1], "1.0.0") == nil
     end
 
     test "returns reason when env var is set to 1" do
       System.put_env("EXCLOSURED_PRECOMPILED_FORCE_BUILD_ALL", "1")
-      reason = ExclosuredPrecompiled.force_build_reason(:my_app, [:mod1])
+      reason = ExclosuredPrecompiled.force_build_reason(:my_app, [:mod1], "0.1.0")
       assert reason =~ "EXCLOSURED_PRECOMPILED_FORCE_BUILD_ALL"
       System.delete_env("EXCLOSURED_PRECOMPILED_FORCE_BUILD_ALL")
     end
 
     test "returns reason when env var is 'true'" do
       System.put_env("EXCLOSURED_PRECOMPILED_FORCE_BUILD_ALL", "true")
-      reason = ExclosuredPrecompiled.force_build_reason(:my_app, [:mod1])
+      reason = ExclosuredPrecompiled.force_build_reason(:my_app, [:mod1], "0.1.0")
       assert reason =~ "EXCLOSURED_PRECOMPILED_FORCE_BUILD_ALL"
       System.delete_env("EXCLOSURED_PRECOMPILED_FORCE_BUILD_ALL")
     end
 
     test "returns :internal when set by precompile task" do
       ExclosuredPrecompiled.set_force_build_all(true)
-      assert ExclosuredPrecompiled.force_build_reason(:my_app, [:mod1]) == :internal
+      assert ExclosuredPrecompiled.force_build_reason(:my_app, [:mod1], "0.1.0") == :internal
       ExclosuredPrecompiled.set_force_build_all(false)
     end
   end
