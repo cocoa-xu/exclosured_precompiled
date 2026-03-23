@@ -43,7 +43,7 @@ defmodule ExclosuredPrecompiled.MixProject do
   defp docs do
     [
       main: "ExclosuredPrecompiled",
-      extras: ["README.md", "PRECOMPILATION_GUIDE.md", "CHANGELOG.md"]
+      extras: ["README.md", "PRECOMPILATION_GUIDE.md", "CHANGELOG.md", "LICENSE"]
     ]
   end
 end
